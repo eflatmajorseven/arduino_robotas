@@ -1,0 +1,176 @@
+#include <AFMotor.h>
+#include <Servo.h> 
+// Motorų objektų sukūrimas
+AF_DCMotor rightBack(1);                     
+AF_DCMotor rightFront(2);
+AF_DCMotor leftFront(3);
+AF_DCMotor leftBack(4);
+
+// Servo objekto sukūrimas
+Servo servo;
+
+// Ultrasonic sensoriaus pinų priskyrimas
+const int trig = A0;
+const int echo = A1;
+//Atstumas iki kurio ieškos kliūčių (apsauga nuo sensoriaus neteisingu rodmenų)
+const int maxDist = 150;
+//Kliūties trumpiausias atstumas
+const int stopDist = 10;
+//Maksimalus laikas, kiek lauks grįžtamo signalo
+float timeOut = 2*(maxDist+10)/100/340*1000000; 
+
+int motorSpeed = 70; 
+int motorOffset = 10; //Kompensacija jeigu viena ratų pusė galingesnė
+int turnSpeed = 50; 
+void setup() {
+  Serial.begin(9600);
+    rightBack.setSpeed(motorSpeed); //Nustatomas motorų greitis
+  rightFront.setSpeed(motorSpeed);
+  leftFront.setSpeed(motorSpeed+motorOffset);
+  leftBack.setSpeed(motorSpeed+motorOffset);
+  rightBack.run(RELEASE); //Sustabdomi visi varikliai
+  rightFront.run(RELEASE);
+  leftFront.run(RELEASE);
+  leftBack.run(RELEASE);
+
+  // Įjungiamas servo variklis
+  servo.attach(10);
+   //Priskiriama ultragarsinio sensoriaus pinų įvestis ir išvestis
+  pinMode(trig,OUTPUT); 
+  pinMode(echo,INPUT); 
+
+}
+void loop (){
+  servo.write(90); //Servo žiūri tiesiai
+  delay(750);
+
+  int distance = getDistance();
+  if (distance >= stopDist){
+    moveForward();
+  }
+  while(distance >= stopDist) 
+  {
+    distance = getDistance();
+    delay(50);
+  }
+  stopMove();
+
+  int turnDir = checkDirection(); 
+  //Pasuka į kairę, apsisuka arba į dešinę priklausomai nuo kliūčių atstumo
+  switch (turnDir)
+  {
+    case 0:
+      turnLeft (700);
+      break;
+    case 1:
+      turnLeft (1300);
+      break;
+    case 2:
+      turnRight (700);
+      break;
+  }
+
+}
+
+
+int getDistance (){
+  long duration;
+  int distance;
+  
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  
+  duration = pulseIn(echo, HIGH, timeOut);
+  distance = duration*0.034/2;
+  Serial.print("Distance: ");
+  Serial.println(distance);
+  return distance;
+}
+
+void moveForward()
+{
+  rightBack.run(FORWARD);
+  rightFront.run(FORWARD);
+  leftFront.run(FORWARD);
+  leftBack.run(FORWARD);
+}
+void stopMove()
+{
+  rightBack.run(RELEASE);
+  rightFront.run(RELEASE);
+  leftFront.run(RELEASE);
+  leftBack.run(RELEASE);
+}
+
+//Patikrina kairę ir dešinę puses ir nusprendžia į kurią pusę sukti ar apsisukti
+int checkDirection()
+{
+//Kairės ir dešinės atstumai                                            
+  int distances [2] = {0,0};
+//Pasukimo reikšmė pagal nutylėjimą
+  int turnDir = 0;
+//Servo variklis pažiūri į kairę
+  servo.write(180);                                         
+  delay(500);
+//Gaunamas atstumas
+  distances [0] = getDistance();
+//Servo variklis pažiūri į dešinę
+  servo.write(0);
+  delay(500);
+  distances [1] = getDistance();
+  //Jeigu abi pusės tuščios - suka į kairę
+  if (distances[0]>=200 && distances[1]>=200)
+    turnDir = 0;
+  //Jeigu abi pusės užblokuotos - apsisuka
+  else if (distances[0]<=stopDist && distances[1]<=stopDist)
+    turnDir = 1;
+  //Jeigu kliūtis kairėje toliau nei dešinėje, suka į kairę
+  else if (distances[0]>=distances[1])
+    turnDir = 0;
+  //Vice versa
+  else if (distances[0]<distances[1])
+    turnDir = 2;
+  return turnDir;
+}
+
+void turnLeft(int duration)
+{
+  rightBack.setSpeed(motorSpeed+turnSpeed);
+  rightFront.setSpeed(motorSpeed+turnSpeed);
+  leftFront.setSpeed(motorSpeed+motorOffset+turnSpeed);
+  leftBack.setSpeed(motorSpeed+motorOffset+turnSpeed);
+  rightBack.run(FORWARD);
+  rightFront.run(FORWARD);
+  leftFront.run(BACKWARD);
+  leftBack.run(BACKWARD);
+  delay(duration);
+  rightBack.setSpeed(motorSpeed);
+  rightFront.setSpeed(motorSpeed);
+  leftFront.setSpeed(motorSpeed+motorOffset);
+  leftBack.setSpeed(motorSpeed+motorOffset);
+  rightBack.run(RELEASE);
+  rightFront.run(RELEASE);
+  leftFront.run(RELEASE);
+  leftBack.run(RELEASE);
+}
+
+void turnRight(int duration){
+  rightBack.setSpeed(motorSpeed+turnSpeed);
+  rightFront.setSpeed(motorSpeed+turnSpeed);
+  leftFront.setSpeed(motorSpeed+motorOffset+turnSpeed);
+  leftBack.setSpeed(motorSpeed+motorOffset+turnSpeed);
+  rightBack.run(BACKWARD);
+  rightFront.run(BACKWARD);
+  leftFront.run(FORWARD);
+  leftBack.run(FORWARD);
+  delay(duration);
+  rightBack.setSpeed(motorSpeed);
+  rightFront.setSpeed(motorSpeed);
+  leftFront.setSpeed(motorSpeed+motorOffset);
+  leftBack.setSpeed(motorSpeed+motorOffset);
+  rightBack.run(RELEASE);
+  rightFront.run(RELEASE);
+  leftFront.run(RELEASE);
+  leftBack.run(RELEASE);
+}
